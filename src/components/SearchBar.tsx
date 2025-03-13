@@ -26,8 +26,8 @@ export default function SearchBar() {
   const [sessionId] = useState(() => crypto.randomUUID());
   const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [deals, setDeals] = useState<string[]>([]);
-  const [isLoadingDeals, setIsLoadingDeals] = useState(true);
-  const [dealsError, setDealsError] = useState<string | null>(null);
+  const [_isLoadingDeals, setIsLoadingDeals] = useState(true);
+  const [_dealsError, setDealsError] = useState<string | null>(null);
   const [highlightedDeal, setHighlightedDeal] = useState<number>(-1);
   const [askResult, setAskResult] = useState<AskState>({
     isLoading: false,
