@@ -10,14 +10,21 @@
 }
 
 .searchWrapper {
-  width: 900px;
+  position: relative;
+  width: 600px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.searchInput {
+.inputContainer {
+  display: flex;
+  gap: 0.5rem;
   width: 100%;
+}
+
+.searchInput {
+  flex: 1;
   padding: 0.75rem 1.25rem;
   font-size: 0.8125rem;
   color: #e5e7eb;
@@ -43,8 +50,8 @@
 }
 
 .resultsContainer {
-  display: flex;
-  gap: 2rem;
+  width: 100%;
+  margin-top: 1rem;
 }
 
 .dropdown {
@@ -452,46 +459,152 @@
   width: 100%;
 }
 
+.selectedDeals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+  width: 600px;
+}
+
 .dealsDropdown {
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 8px;
-  margin-top: 0.25rem;
-  max-height: 640px;
+  width: 600px;
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  margin-top: 4px;
+  max-height: 300px;
   overflow-y: auto;
-  z-index: 10;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  scroll-behavior: smooth;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
-.dealsDropdown::-webkit-scrollbar {
-  display: none;
+.dealsLoading,
+.dealsError,
+.dealsEmpty {
+  padding: 8px;
+  text-align: center;
+  color: #888;
+  font-size: 0.8rem;
+}
+
+.dealsError {
+  color: #ff6b6b;
 }
 
 .dealOption {
-  padding: 0.4rem 0.75rem;
-  color: #e5e7eb;
-  font-size: 0.7rem;
+  padding: 4px 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid #374151;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.dealOption.highlighted {
-  background: #2d3748;
-}
-
-.dealOption:last-child {
-  border-bottom: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #e0e0e0;
+  transition: background-color 0.1s ease;
+  position: relative;
 }
 
 .dealOption:hover {
-  background: #2d3748;
+  background-color: #2a2a2a;
+}
+
+.dealOption.highlighted {
+  background-color: #374151;
+  color: #ffffff;
+}
+
+.dealOption.selected {
+  background-color: #333;
+}
+
+.checkmark {
+  color: #4CAF50;
+  font-size: 0.7rem;
+}
+
+.selectedDealTag {
+  display: flex;
+  align-items: center;
+  background: #2a2a2a;
+  padding: 3px 6px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: #e0e0e0;
+}
+
+.removeDealButton {
+  background: none;
+  border: none;
+  margin-left: 4px;
+  cursor: pointer;
+  color: #888;
+  font-size: 0.75rem;
+  padding: 0 2px;
+}
+
+.removeDealButton:hover {
+  color: #ff6b6b;
+}
+
+.clearDealsButton {
+  background: #333;
+  border: 1px solid #444;
+  padding: 3px 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.clearDealsButton:hover {
+  background: #444;
+}
+
+.dealsDropdown::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dealsDropdown::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.dealsDropdown::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.dealsDropdown::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.modeToggle,
+.questionSection {
+  display: none;
+}
+
+.askButton {
+  padding: 0.75rem 1.25rem;
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 16px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+
+.askButton:hover {
+  background: #1d4ed8;
+}
+
+.askButton:disabled {
+  background: #374151;
+  cursor: not-allowed;
 } 

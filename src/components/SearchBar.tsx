@@ -24,7 +24,7 @@ export default function SearchBar() {
   const [query, setQuery] = useState('');
   const [dealQuery, setDealQuery] = useState('');
   const [sessionId] = useState(() => crypto.randomUUID());
-  const [selectedDeal, setSelectedDeal] = useState<string | null>(null);
+  const [selectedDeals, setSelectedDeals] = useState<string[]>([]);
   const [deals, setDeals] = useState<string[]>([]);
   const [isLoadingDeals, setIsLoadingDeals] = useState(true);
   const [dealsError, setDealsError] = useState<string | null>(null);
@@ -35,6 +35,7 @@ export default function SearchBar() {
     sources: null,
     error: null
   });
+  const [isAskMode, setIsAskMode] = useState(false);
 
   // Filter deals based on query
   const filteredDeals = deals.filter(deal => 
@@ -122,25 +123,39 @@ export default function SearchBar() {
 
   const selectDeal = async (dealName: string) => {
     try {
-      const response = await fetch(`${API_URL}/select-deal/${sessionId}/${encodeURIComponent(dealName)}`, {
-        method: 'POST'
+      // Toggle deal selection
+      const newSelectedDeals = selectedDeals.includes(dealName)
+        ? selectedDeals.filter(deal => deal !== dealName)
+        : [...selectedDeals, dealName];
+
+      const response = await fetch(`${API_URL}/select-deals/${sessionId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deals: newSelectedDeals })
       });
-      if (!response.ok) throw new Error('Failed to select deal');
-      setSelectedDeal(dealName);
-      setQuery('');
-      setAskResult({
-        isLoading: false,
-        answer: null,
-        sources: null,
-        error: null
-      });
+      
+      if (!response.ok) throw new Error('Failed to select deals');
+      setSelectedDeals(newSelectedDeals);
+      
+      // Only reset query and results if we have no deals selected
+      if (newSelectedDeals.length === 0) {
+        setQuery('');
+        setAskResult({
+          isLoading: false,
+          answer: null,
+          sources: null,
+          error: null
+        });
+      }
     } catch (error) {
-      console.error('Error selecting deal:', error);
+      console.error('Error selecting deals:', error);
     }
   };
 
   const askQuestion = async (question: string) => {
-    if (!selectedDeal) return;
+    if (selectedDeals.length === 0) return;
     
     try {
       setAskResult({
@@ -182,139 +197,212 @@ export default function SearchBar() {
     }
   };
 
+  // Add this helper function
+  const getUniqueSourcesByFilename = (sources: AskResponse['sources']) => {
+    if (!sources) return [];
+    
+    // Create a map to store the highest scoring source for each filename
+    const filenameMap = new Map();
+    
+    sources.forEach(source => {
+      const filename = source.metadata.name;
+      if (!filename) return;
+      
+      // If we haven't seen this filename, or if this source has a higher score
+      if (!filenameMap.has(filename) || source.score > filenameMap.get(filename).score) {
+        filenameMap.set(filename, source);
+      }
+    });
+    
+    // Convert map back to array and sort by score descending
+    return Array.from(filenameMap.values()).sort((a, b) => b.score - a.score);
+  };
+
+  const clearDeals = () => {
+    setSelectedDeals([]);
+    setQuery('');
+    setAskResult({
+      isLoading: false,
+      answer: null,
+      sources: null,
+      error: null
+    });
+  };
+
   return (
     <div className={styles.searchContainer}>
       <div className={styles.searchWrapper}>
-        {!selectedDeal ? (
-          <div className={styles.dealSelectionContainer}>
+        <div className={styles.dealSelectionContainer}>
+          <div className={styles.inputContainer}>
             <input
               type="text"
               className={styles.searchInput}
-              placeholder="What deal would you like to talk about?"
-              value={dealQuery}
-              onChange={(e) => setDealQuery(e.target.value)}
-              onKeyDown={handleDealKeyDown}
+              placeholder={isAskMode 
+                ? `Ask a question about ${selectedDeals.length === 1 ? 'this deal' : 'these deals'}...`
+                : "Which deals do you want to talk about..."
+              }
+              value={isAskMode ? query : dealQuery}
+              onChange={(e) => {
+                if (isAskMode) {
+                  setQuery(e.target.value);
+                } else {
+                  setDealQuery(e.target.value);
+                  setHighlightedDeal(0);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (isAskMode) {
+                  if (e.key === 'Enter' && query.trim()) {
+                    e.preventDefault();
+                    askQuestion(query.trim());
+                  } else if (e.key === 'Escape') {
+                    setIsAskMode(false);
+                    setQuery('');
+                  }
+                } else {
+                  handleDealKeyDown(e);
+                }
+              }}
             />
-            {isLoadingDeals ? (
-              <div className={styles.dealsDropdown}>
-                <div className={styles.dealsLoading}>Loading available deals...</div>
-              </div>
-            ) : dealsError ? (
-              <div className={styles.dealsDropdown}>
-                <div className={styles.dealsError}>{dealsError}</div>
-              </div>
-            ) : filteredDeals.length === 0 ? (
-              <div className={styles.dealsDropdown}>
+
+            {selectedDeals.length > 0 && (
+              <button
+                className={styles.askButton}
+                onClick={() => {
+                  setIsAskMode(!isAskMode);
+                  if (isAskMode) {
+                    setQuery('');  // Clear question when switching to select mode
+                  } else {
+                    setDealQuery('');  // Clear deal search when switching to ask mode
+                  }
+                }}
+              >
+                {isAskMode ? 'Select deals' : 'Ask'}
+              </button>
+            )}
+          </div>
+
+          {/* Only show dropdown when not in ask mode */}
+          {!isAskMode && (
+            <div className={styles.dealsDropdown} ref={dropdownRef}>
+              {filteredDeals.length === 0 ? (
                 <div className={styles.dealsEmpty}>
-                  {dealQuery ? 'No matching deals found' : 'No deals available'}
+                  {dealQuery ? 'No matching deals found' : 'Start typing to search deals'}
                 </div>
-              </div>
-            ) : (
-              <div className={styles.dealsDropdown} ref={dropdownRef}>
-                {filteredDeals.map((deal, index) => (
+              ) : (
+                filteredDeals.map((deal, index) => (
                   <div
                     key={deal}
                     data-index={index}
-                    className={`${styles.dealOption} ${index === highlightedDeal ? styles.highlighted : ''}`}
+                    className={`${styles.dealOption} 
+                      ${index === highlightedDeal ? styles.highlighted : ''} 
+                      ${selectedDeals.includes(deal) ? styles.selected : ''}`}
                     onClick={() => selectDeal(deal)}
                   >
                     {deal}
+                    {selectedDeals.includes(deal) && <span className={styles.checkmark}>✓</span>}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className={styles.selectedDeal}>
-              <span>Selected Deal: {selectedDeal}</span>
-              <button 
-                className={styles.changeDealButton}
-                onClick={() => setSelectedDeal(null)}
-              >
-                Change Deal
-              </button>
+                ))
+              )}
             </div>
-            <input
-              type="text"
-              className={styles.searchInput}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && query.trim()) {
-                  e.preventDefault();
-                  askQuestion(query.trim());
-                }
-              }}
-              placeholder="Ask a question..."
-            />
-            
-            <div className={styles.resultsContainer}>
-              {askResult.isLoading ? (
-                <div className={styles.contentContainer}>
-                  <div className={styles.answerLoading}>
-                    Thinking...
-                  </div>
-                </div>
-              ) : askResult.error ? (
-                <div className={styles.contentContainer}>
-                  <div className={`${styles.answerPanel} ${styles.hasContent}`}>
-                    <div className={styles.answerError}>
-                      {askResult.error}
-                    </div>
-                  </div>
-                </div>
-              ) : askResult.answer ? (
-                <div className={styles.contentContainer}>
-                  <div className={`${styles.answerPanel} ${styles.hasContent}`}>
-                    <div className={styles.answer}>
-                      <h3>Answer</h3>
-                      <p>{askResult.answer}</p>
-                    </div>
-                  </div>
-                  {askResult.sources && askResult.sources.length > 0 && (
-                    <div className={styles.sourcesPanel}>
-                      <h4>Sources ({askResult.sources.length})</h4>
-                      <div className={styles.sourcesList}>
-                        {askResult.sources.map((source, index) => (
-                          <div key={index} className={styles.source}>
-                            <div className={styles.metadataItem}>
-                              <span className={styles.metadataLabel}>Name:</span>
-                              <span className={styles.metadataValue}>{source.metadata.name || 'Unknown'}</span>
-                            </div>
-                            <div className={styles.metadataGrid}>
-                              <div className={styles.metadataItem}>
-                                <span className={styles.metadataLabel}>Size:</span>
-                                <span className={styles.metadataValue}>{source.metadata.size || 'Unknown'}</span>
-                              </div>
-                              <div className={styles.metadataItem}>
-                                <span className={styles.metadataLabel}>Score:</span>
-                                <span className={`${styles.metadataValue} ${styles.score}`}>{Math.round(source.score * 100)}%</span>
-                              </div>
-                            </div>
-                            <div className={styles.metadataGrid}>
-                              <div className={styles.metadataItem}>
-                                <span className={styles.metadataLabel}>By:</span>
-                                <span className={styles.metadataValue}>{source.metadata.author || 'Unknown'}</span>
-                              </div>
-                              <div className={styles.metadataItem}>
-                                <span className={styles.metadataLabel}>Date:</span>
-                                <span className={styles.metadataValue}>
-                                  {source.metadata.date_created 
-                                    ? new Date(source.metadata.date_created).toLocaleDateString()
-                                    : 'Unknown'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+          )}
+
+          {selectedDeals.length > 0 && (
+            <div className={styles.selectedDeals}>
+              {selectedDeals.map(deal => (
+                <div key={deal} className={styles.selectedDealTag}>
+                  <span>{deal}</span>
+                  {/* Only show remove button if we're not in ask mode OR if it's not the last deal */}
+                  {(!isAskMode || selectedDeals.length > 1) && (
+                    <button 
+                      className={styles.removeDealButton}
+                      onClick={() => selectDeal(deal)}
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
-              ) : null}
+              ))}
+              {/* Only show Clear All button in select mode */}
+              {!isAskMode && (
+                <button 
+                  className={styles.clearDealsButton}
+                  onClick={clearDeals}
+                >
+                  Clear All
+                </button>
+              )}
             </div>
-          </>
+          )}
+        </div>
+
+        {/* Results container */}
+        {isAskMode && (
+          <div className={styles.resultsContainer}>
+            {askResult.isLoading ? (
+              <div className={styles.contentContainer}>
+                <div className={styles.answerLoading}>
+                  Thinking...
+                </div>
+              </div>
+            ) : askResult.error ? (
+              <div className={styles.contentContainer}>
+                <div className={`${styles.answerPanel} ${styles.hasContent}`}>
+                  <div className={styles.answerError}>
+                    {askResult.error}
+                  </div>
+                </div>
+              </div>
+            ) : askResult.answer ? (
+              <div className={styles.contentContainer}>
+                <div className={`${styles.answerPanel} ${styles.hasContent}`}>
+                  <div className={styles.answer}>
+                    <h3>Answer</h3>
+                    <p>{askResult.answer}</p>
+                  </div>
+                </div>
+                {askResult.sources && (
+                  <div className={styles.sourcesPanel}>
+                    <h4>Sources ({getUniqueSourcesByFilename(askResult.sources).length})</h4>
+                    <div className={styles.sourcesList}>
+                      {getUniqueSourcesByFilename(askResult.sources).map((source, index) => (
+                        <div key={index} className={styles.source}>
+                          <div className={styles.metadataItem}>
+                            <span className={styles.metadataLabel}>Name:</span>
+                            <span className={styles.metadataValue}>{source.metadata.name || 'Unknown'}</span>
+                          </div>
+                          <div className={styles.metadataGrid}>
+                            <div className={styles.metadataItem}>
+                              <span className={styles.metadataLabel}>Size:</span>
+                              <span className={styles.metadataValue}>{source.metadata.size || 'Unknown'}</span>
+                            </div>
+                            <div className={styles.metadataItem}>
+                              <span className={styles.metadataLabel}>Score:</span>
+                              <span className={`${styles.metadataValue} ${styles.score}`}>{Math.round(source.score * 100)}%</span>
+                            </div>
+                          </div>
+                          <div className={styles.metadataGrid}>
+                            <div className={styles.metadataItem}>
+                              <span className={styles.metadataLabel}>By:</span>
+                              <span className={styles.metadataValue}>{source.metadata.author || 'Unknown'}</span>
+                            </div>
+                            <div className={styles.metadataItem}>
+                              <span className={styles.metadataLabel}>Date:</span>
+                              <span className={styles.metadataValue}>
+                                {source.metadata.date_created 
+                                  ? new Date(source.metadata.date_created).toLocaleDateString()
+                                  : 'Unknown'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
     </div>
